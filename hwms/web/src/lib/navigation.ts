@@ -152,19 +152,6 @@ export const navigation: NavGroup[] = [
       },
     ],
   },
-  {
-    label: "Administration",
-    items: [
-      {
-        path: "/accounts",
-        label: "Accounts",
-        icon: "manage_accounts",
-        roles: [manager],
-        summary:
-          "Health and Wellness Officer and Director accounts. Every creation, enabling and disabling is written to the audit log.",
-      },
-    ],
-  },
 ];
 
 /** Every route in the table, including those not shown in the rail. */

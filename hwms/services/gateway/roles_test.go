@@ -26,7 +26,11 @@ func decodeClaims(t *testing.T, payload string) []string {
 	if err := json.Unmarshal([]byte(payload), &claims); err != nil {
 		t.Fatalf("claims did not decode: %v", err)
 	}
-	return filterHWMSRoles(claims.RealmAccess.Roles)
+	roles := append([]string(nil), claims.RealmAccess.Roles...)
+	for _, res := range claims.ResourceAccess {
+		roles = append(roles, res.Roles...)
+	}
+	return filterHWMSRoles(roles)
 }
 
 // A Keycloak access token carries realm_access.roles.
@@ -49,6 +53,25 @@ func TestRolesAreReadFromTheAccessTokenShape(t *testing.T) {
 	roles := decodeClaims(t, accessTokenPayload)
 	if len(roles) != 1 || roles[0] != auth.RoleManager {
 		t.Fatalf("expected exactly [%s], got %v", auth.RoleManager, roles)
+	}
+}
+
+func TestRolesAreReadFromResourceAccessClientRoles(t *testing.T) {
+	clientRolePayload := `{
+	  "sub": "a5b63b19-5de9-4f50-8be5-dd6311179d85",
+	  "preferred_username": "officer@kiiramotors.com",
+	  "realm_access": {
+	    "roles": ["default-roles-test", "offline_access"]
+	  },
+	  "resource_access": {
+	    "hwms-gateway": {
+	      "roles": ["hwms-officer"]
+	    }
+	  }
+	}`
+	roles := decodeClaims(t, clientRolePayload)
+	if len(roles) != 1 || roles[0] != auth.RoleOfficer {
+		t.Fatalf("expected exactly [%s], got %v", auth.RoleOfficer, roles)
 	}
 }
 

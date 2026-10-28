@@ -49,6 +49,10 @@
   --ok-wash: #eaf7f3;
   --caution: #9a6100;
   --caution-wash: #fff6e3;
+  /* Chart marks only. The text amber above sits too close to --breach to be
+     told apart as a filled shape; this one separates from both neighbours
+     under every common colour vision deficiency and keeps 3:1 on white. */
+  --caution-mark: #b8860b;
   --breach: #b42318;
   --breach-wash: #fff0ee;
   --neutral: #68758c;

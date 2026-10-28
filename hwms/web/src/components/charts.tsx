@@ -1,4 +1,5 @@
 import type { MetricStatus } from "../lib/api";
+import { longMonth, shortMonth } from "../lib/dates";
 
 /**
  * The chart marks used on the dashboard.
@@ -12,10 +13,14 @@ import type { MetricStatus } from "../lib/api";
  *
  * Colour is never the only carrier of meaning. Every mark below is accompanied
  * by a figure and a word, so the screen survives greyscale and a reader with a
- * colour vision deficiency loses nothing. This matters more than usual here:
- * the palette's caution amber and breach red are close enough that a validator
- * flags them as hard to separate when adjacent, so they are never placed
- * adjacent without a gap and a label between them.
+ * colour vision deficiency loses nothing.
+ *
+ * Marks do not use the caution amber that pills use for text. Measured against
+ * the breach red, that amber separates by ΔE 12.7 with full colour vision and
+ * 3.8 under deuteranopia, which is hard to tell apart for everyone and nearly
+ * identical for some. --caution-mark is a lighter goldenrod chosen for marks
+ * only: it clears the separation checks against both neighbours and keeps 3:1
+ * contrast with the surface. Text keeps --caution, which is dark enough to read.
  *
  * KMC red is brand chrome and never appears in a mark. Status uses the status
  * tokens, which are deliberately not the brand red.
@@ -23,22 +28,27 @@ import type { MetricStatus } from "../lib/api";
 
 const statusColour: Record<MetricStatus, string> = {
   within: "var(--ok)",
-  approaching: "var(--caution)",
+  approaching: "var(--caution-mark)",
   outside: "var(--breach)",
   "no-data": "var(--neutral)",
 };
 
 /**
- * A ratio against a target, as a ring.
+ * A share of a bounded whole, as a ring.
  *
- * The correct form for one ratio against one limit is a meter, and a ring is a
- * meter closed into a circle. It is used only where the figure genuinely is a
- * proportion of a whole, surveillance compliance, hygiene compliance,
- * ergonomic risk control. A count with a target of zero is not a proportion of
- * anything, and gets a figure rather than a ring.
+ * A ring is a meter closed into a circle, and it is only honest when the full
+ * circle means something: everyone scheduled was assessed, every reading was
+ * within its limit. The gap in the ring is then the shortfall. A count has no
+ * whole to fill, a value that can run past its target would be capped at a full
+ * ring, and a rate in days per person has no circle at all, so those get a
+ * figure or a straight track instead (see markFor on the dashboard).
  *
- * The target sits on the track as a tick, so "92%" is read against "95% needed"
- * without leaving the mark.
+ * Angle is read less precisely than length, and 92% and 95% look almost the
+ * same as arcs. The ring is for the glance; the figure in the middle and the
+ * distance to target printed beside it carry the precision.
+ *
+ * The arc ends square. A round cap extends the arc by half the stroke width at
+ * each end, which on this ring overstates the value by about three points.
  */
 export function RadialMeter({
   value,
@@ -48,62 +58,55 @@ export function RadialMeter({
 }: {
   /** Percentage 0–100, or null where there is no figure. */
   value: number | null;
-  /** The target as a percentage, drawn as a tick on the track. */
+  /** The target as a percentage, drawn as a tick across the track. */
   target?: number;
   status: MetricStatus;
   /** Announced to a screen reader in place of the drawing. */
   label: string;
 }) {
-  const radius = 42;
+  const radius = 40;
+  const stroke = 9;
   const circumference = 2 * Math.PI * radius;
   const clamped = value === null ? 0 : Math.max(0, Math.min(100, value));
   const filled = (clamped / 100) * circumference;
 
-  // Degrees clockwise from twelve o'clock.
-  const targetAngle = target === undefined ? null : (Math.min(100, target) / 100) * 360 - 90;
+  // Radians clockwise from twelve o'clock.
+  const targetAngle =
+    target === undefined ? null : (Math.max(0, Math.min(100, target)) / 100) * 2 * Math.PI - Math.PI / 2;
+  const onTargetAngle = (distance: number) =>
+    targetAngle === null
+      ? { x: 50, y: 50 }
+      : { x: 50 + distance * Math.cos(targetAngle), y: 50 + distance * Math.sin(targetAngle) };
+  const tickFrom = onTargetAngle(radius - stroke / 2 - 3);
+  const tickTo = onTargetAngle(radius + stroke / 2 + 3);
 
   return (
-    <svg
-      viewBox="0 0 100 100"
-      className="h-[104px] w-[104px]"
-      role="img"
-      aria-label={label}
-    >
+    <svg viewBox="0 0 100 100" className="radial-meter" role="img" aria-label={label}>
       {/* The track. One shade off the surface, so it reads as the container
           for the value rather than as a second value. */}
-      <circle
-        cx="50"
-        cy="50"
-        r={radius}
-        fill="none"
-        stroke="var(--rule)"
-        strokeWidth="7"
-      />
+      <circle cx="50" cy="50" r={radius} fill="none" stroke="var(--rule)" strokeWidth={stroke} />
 
-      {value !== null ? (
+      {value !== null && clamped > 0 ? (
         <circle
           cx="50"
           cy="50"
           r={radius}
           fill="none"
           stroke={statusColour[status]}
-          strokeWidth="7"
-          strokeLinecap="round"
-          strokeDasharray={`${filled} ${circumference - filled}`}
+          strokeWidth={stroke}
+          strokeDasharray={`${filled} ${circumference}`}
           // Start at twelve o'clock rather than three.
           transform="rotate(-90 50 50)"
         />
       ) : null}
 
+      {/* The target, across the track. The surface-coloured halo keeps it
+          visible where the arc has already passed it. */}
       {targetAngle !== null ? (
-        <line
-          x1={50 + (radius - 6) * Math.cos((targetAngle * Math.PI) / 180)}
-          y1={50 + (radius - 6) * Math.sin((targetAngle * Math.PI) / 180)}
-          x2={50 + (radius + 6) * Math.cos((targetAngle * Math.PI) / 180)}
-          y2={50 + (radius + 6) * Math.sin((targetAngle * Math.PI) / 180)}
-          stroke="var(--ink-muted)"
-          strokeWidth="2"
-        />
+        <g strokeLinecap="round">
+          <line x1={tickFrom.x} y1={tickFrom.y} x2={tickTo.x} y2={tickTo.y} stroke="var(--surface)" strokeWidth="6" />
+          <line x1={tickFrom.x} y1={tickFrom.y} x2={tickTo.x} y2={tickTo.y} stroke="var(--ink)" strokeWidth="2.5" />
+        </g>
       ) : null}
 
       <text
@@ -111,12 +114,17 @@ export function RadialMeter({
         y="50"
         textAnchor="middle"
         dominantBaseline="central"
-        className="data-value"
-        fontSize={value === null ? "22" : "20"}
-        fontWeight="500"
+        className="radial-meter-value"
         fill={value === null ? "var(--ink-faint)" : "var(--ink)"}
       >
-        {value === null ? "—" : `${value.toFixed(1)}%`}
+        {value === null ? (
+          "—"
+        ) : (
+          <>
+            {value.toFixed(1)}
+            <tspan className="radial-meter-unit">%</tspan>
+          </>
+        )}
       </text>
     </svg>
   );
@@ -129,6 +137,9 @@ export function RadialMeter({
  * least 200" and no ceiling: a ring capped at 100% would show a month of 260
  * as identical to a month of 200, hiding exactly the good news the indicator
  * exists to surface. A straight track can run past its target and show it.
+ *
+ * Drawn in HTML rather than SVG so the track can stretch to the card without
+ * distorting its rounded end or the target marker.
  */
 export function LinearMeter({
   value,
@@ -150,31 +161,18 @@ export function LinearMeter({
   const targetAt = Math.max(0, Math.min(1, target / ceiling));
 
   return (
-    <div className="w-full" role="img" aria-label={label}>
-      <svg viewBox="0 0 200 14" className="h-[14px] w-full" preserveAspectRatio="none">
-        <rect x="0" y="4" width="200" height="6" rx="3" fill="var(--rule)" />
+    <div className="linear-meter" role="img" aria-label={label}>
+      <div className="linear-meter-track">
         {value !== null ? (
-          <rect
-            x="0"
-            y="4"
-            width={Math.max(proportion * 200, proportion > 0 ? 3 : 0)}
-            height="6"
-            rx="3"
-            fill={statusColour[status]}
+          <div
+            className="linear-meter-fill"
+            style={{ width: `${proportion * 100}%`, background: statusColour[status] }}
           />
         ) : null}
-        {/* The threshold. A solid hairline, never dashed, dashing reads as a
-            projection when it is a hard limit. */}
-        <line
-          x1={targetAt * 200}
-          y1="1"
-          x2={targetAt * 200}
-          y2="13"
-          stroke="var(--ink-muted)"
-          strokeWidth="2"
-          vectorEffect="non-scaling-stroke"
-        />
-      </svg>
+      </div>
+      {/* The threshold. A solid marker, never dashed: dashing reads as a
+          projection when it is a hard limit. */}
+      <span className="linear-meter-target" style={{ left: `${targetAt * 100}%` }} />
     </div>
   );
 }
@@ -193,31 +191,42 @@ export interface TrendPoint {
  * is the same failure as showing missing data as zero, and on a chart it is
  * far less obvious.
  *
- * Only the last point is labelled. A number against every month is chaos and
- * goes unread; the figure the reader wants is already the headline above.
+ * The target is drawn as a hairline and included in the vertical scale, so the
+ * line is read against the target rather than against its own range: a series
+ * that wanders between 84% and 91% looks dramatic on its own and is plainly
+ * short of 95% once the target is in view.
+ *
+ * Only the last point is marked. A number against every month is chaos and
+ * goes unread; each month's figure is in the hover title and, for keyboard and
+ * screen reader users, in the card's calculation details.
  */
-export function Sparkline({ points, label }: { points: TrendPoint[]; label: string }) {
-  const width = 148;
-  const height = 30;
+export function Sparkline({
+  points,
+  label,
+  target,
+  formatValue,
+}: {
+  points: TrendPoint[];
+  label: string;
+  target?: number;
+  formatValue: (value: number) => string;
+}) {
+  const width = 100;
+  const height = 36;
   const values = points.map((point) => point.value).filter((v): v is number => v !== undefined);
 
   if (points.length < 2 || values.length === 0) {
-    return (
-      <div className="flex h-[30px] items-center text-xs text-ink-faint">
-        Not enough history to show a trend
-      </div>
-    );
+    return <div className="sparkline-empty">Not enough history to show a trend</div>;
   }
 
-  const min = Math.min(...values);
-  const max = Math.max(...values);
-  // A flat series would divide by zero and, worse, would draw at the very top
-  // or bottom of the box. Given a span, it sits on the centre line.
-  const span = max - min || Math.abs(max) || 1;
+  const domain = target === undefined ? values : [...values, target];
+  const min = Math.min(...domain);
+  const max = Math.max(...domain);
 
-  const x = (index: number) => (index / (points.length - 1)) * width;
-  const y = (value: number) =>
-    max === min ? height / 2 : height - 2 - ((value - min) / span) * (height - 4);
+  const step = width / points.length;
+  const x = (index: number) => step / 2 + index * step;
+  // A flat series sits on the centre line rather than on an edge of the box.
+  const y = (value: number) => (max === min ? height / 2 : height - 4 - ((value - min) / (max - min)) * (height - 8));
 
   // Contiguous runs, so gaps stay gaps.
   const runs: { index: number; value: number }[][] = [];
@@ -235,24 +244,46 @@ export function Sparkline({ points, label }: { points: TrendPoint[]; label: stri
   const last = points[points.length - 1];
   const missing = points.length - values.length;
 
+  // The SVG stretches to the card's width, so round things are drawn as
+  // zero-length lines with round caps and non-scaling strokes: they stay round
+  // at any aspect ratio, where a <circle> would become an ellipse.
+  const dot = (index: number, value: number, colour: string, size: number, key?: string | number) => (
+    <line
+      key={key}
+      x1={x(index)}
+      y1={y(value)}
+      x2={x(index)}
+      y2={y(value)}
+      stroke={colour}
+      strokeWidth={size}
+      strokeLinecap="round"
+      vectorEffect="non-scaling-stroke"
+    />
+  );
+
   return (
-    <div className="flex items-end gap-2">
+    <figure className="sparkline">
       <svg
         viewBox={`0 0 ${width} ${height}`}
-        className="h-[30px] w-[148px] shrink-0"
+        preserveAspectRatio="none"
+        className="sparkline-svg"
         role="img"
         aria-label={label}
       >
-        <title>{label}</title>
+        {target !== undefined && max !== min ? (
+          <line
+            x1="0"
+            x2={width}
+            y1={y(target)}
+            y2={y(target)}
+            stroke="var(--rule-strong)"
+            strokeWidth="1"
+            vectorEffect="non-scaling-stroke"
+          />
+        ) : null}
         {runs.map((segment, index) =>
           segment.length === 1 ? (
-            <circle
-              key={index}
-              cx={x(segment[0].index)}
-              cy={y(segment[0].value)}
-              r="2"
-              fill="var(--ink-faint)"
-            />
+            dot(segment[0].index, segment[0].value, "var(--ink-faint)", 4, index)
           ) : (
             <polyline
               key={index}
@@ -262,6 +293,7 @@ export function Sparkline({ points, label }: { points: TrendPoint[]; label: stri
               strokeWidth="1.5"
               strokeLinecap="round"
               strokeLinejoin="round"
+              vectorEffect="non-scaling-stroke"
             />
           ),
         )}
@@ -269,25 +301,30 @@ export function Sparkline({ points, label }: { points: TrendPoint[]; label: stri
             with the headline figure above it rather than reading as a second,
             differently-coloured opinion. */}
         {last.value !== undefined ? (
-          <circle
-            cx={x(points.length - 1)}
-            cy={y(last.value)}
-            r="2.75"
-            fill={statusColour[last.status]}
-            stroke="var(--surface)"
-            strokeWidth="2"
-          />
+          <>
+            {dot(points.length - 1, last.value, "var(--surface)", 11)}
+            {dot(points.length - 1, last.value, statusColour[last.status], 7)}
+          </>
         ) : null}
+        {/* One hover target per month, the full height of the chart. */}
+        {points.map((point, index) => (
+          <rect key={point.period} x={index * step} y="0" width={step} height={height} fill="transparent">
+            <title>
+              {longMonth(point.period)}: {point.value === undefined ? "no figure" : formatValue(point.value)}
+            </title>
+          </rect>
+        ))}
       </svg>
-      <span className="pb-0.5 text-xs leading-none text-ink-faint">
-        {points[0].period.slice(5)}–{last.period.slice(5)}
+      <figcaption className="sparkline-axis">
+        <span>{shortMonth(points[0].period)}</span>
         {missing > 0 ? (
-          <span className="ml-1" title={`${missing} month(s) have no figure`}>
-            · {missing} missing
+          <span>
+            {missing} month{missing === 1 ? "" : "s"} missing
           </span>
         ) : null}
-      </span>
-    </div>
+        <span>{shortMonth(last.period)}</span>
+      </figcaption>
+    </figure>
   );
 }
 
@@ -296,13 +333,13 @@ export function Sparkline({ points, label }: { points: TrendPoint[]; label: stri
  *
  * Part-to-whole with four classes, which is the one case a stacked bar answers
  * better than the numbers alone: the reader sees the shape of the month before
- * reading anything.
+ * reading anything. A segmented ring could show the same split, but its
+ * segments are compared by angle and the bar's by length, which is read more
+ * accurately.
  *
  * Segments are separated by a two-pixel surface gap and every one is named in
- * the legend beneath with its glyph, word and count. That is not decoration -
- * the caution amber and the breach red in this palette are close enough that a
- * validator reports them as hard to tell apart even with full colour vision,
- * so they must never sit edge to edge carrying meaning by colour alone.
+ * the legend beneath with its glyph, word and count, so no segment carries its
+ * meaning by colour alone.
  */
 export function StatusBar({
   counts,
@@ -316,11 +353,10 @@ export function StatusBar({
 
   return (
     <div>
-      <div className="flex h-2.5 w-full gap-[2px] overflow-hidden">
+      <div className="status-bar" aria-hidden="true">
         {present.map((entry) => (
           <span
             key={entry.status}
-            className="first:rounded-l-full last:rounded-r-full"
             style={{
               width: `${(entry.count / total) * 100}%`,
               background: statusColour[entry.status],
@@ -329,19 +365,15 @@ export function StatusBar({
         ))}
       </div>
 
-      <ul className="mt-3 flex flex-wrap gap-x-5 gap-y-1.5">
+      <ul className="status-legend">
         {counts.map((entry) => (
-          <li key={entry.status} className="flex items-center gap-1.5 text-xs">
-            <span
-              aria-hidden="true"
-              className="inline-block h-2.5 w-2.5 rounded-sm"
-              style={{ background: statusColour[entry.status] }}
-            />
-            <span aria-hidden="true" className="data-value" style={{ color: statusColour[entry.status] }}>
+          <li key={entry.status}>
+            <span aria-hidden="true" className="status-legend-swatch" style={{ background: statusColour[entry.status] }} />
+            <span aria-hidden="true" className="data-value">
               {entry.glyph}
             </span>
             <span className="text-ink-muted">{entry.label}</span>
-            <span className="data-value font-medium">{entry.count}</span>
+            <span className="status-legend-count">{entry.count}</span>
           </li>
         ))}
       </ul>

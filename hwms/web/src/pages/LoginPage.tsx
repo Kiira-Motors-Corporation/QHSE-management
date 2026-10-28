@@ -160,8 +160,8 @@ export function LoginPage() {
 
           <div className="mt-8 border-t border-rule pt-6 text-xs leading-relaxed text-ink-muted">
             <p>
-              Accounts are created by the Health and Wellness manager. If you cannot sign in, or your
-              account opens nothing, ask the manager rather than ICT, role assignment is theirs.
+              Accounts and roles are managed through corporate Single Sign-On (Keycloak). If you cannot
+              sign in, or your account opens nothing, contact the ICT / system administrator.
             </p>
           </div>
         </div>

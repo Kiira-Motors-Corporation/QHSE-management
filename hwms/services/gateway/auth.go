@@ -124,7 +124,11 @@ func (g *gateway) handleCallback(w http.ResponseWriter, r *http.Request) {
 	if len(roles) == 0 {
 		// Belt and braces: a realm configured to publish roles on the identity
 		// token instead should still work.
-		roles = filterHWMSRoles(claims.RealmAccess.Roles)
+		idRoles := append([]string(nil), claims.RealmAccess.Roles...)
+		for _, res := range claims.ResourceAccess {
+			idRoles = append(idRoles, res.Roles...)
+		}
+		roles = filterHWMSRoles(idRoles)
 	}
 
 	subject := auth.Subject{
@@ -247,6 +251,9 @@ type identityClaims struct {
 	RealmAccess       struct {
 		Roles []string `json:"roles"`
 	} `json:"realm_access"`
+	ResourceAccess map[string]struct {
+		Roles []string `json:"roles"`
+	} `json:"resource_access"`
 }
 
 // rolesFromAccessToken verifies the access token and returns the roles this
@@ -272,7 +279,11 @@ func (g *gateway) rolesFromAccessToken(ctx context.Context, raw string) []string
 	if err := token.Claims(&claims); err != nil {
 		return nil
 	}
-	return filterHWMSRoles(claims.RealmAccess.Roles)
+	roles := append([]string(nil), claims.RealmAccess.Roles...)
+	for _, res := range claims.ResourceAccess {
+		roles = append(roles, res.Roles...)
+	}
+	return filterHWMSRoles(roles)
 }
 
 // filterHWMSRoles drops the realm's default roles so that the application sees

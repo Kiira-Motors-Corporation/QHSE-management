@@ -151,14 +151,6 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             </div>
           ))}
         </div>
-
-        <div className="sidebar-foot">
-          <Icon name="lock" size={18} style={{ color: "var(--clinical)" }} />
-          <div>
-            <strong>Protected workspace</strong>
-            <span>Access follows your role. Clinical record retrievals are logged.</span>
-          </div>
-        </div>
       </nav>
 
       <main className="app-main">

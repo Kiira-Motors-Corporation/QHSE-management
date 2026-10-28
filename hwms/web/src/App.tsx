@@ -3,7 +3,6 @@ import { AppShell } from "./components/AppShell";
 import { LoginPage } from "./pages/LoginPage";
 import { DashboardPage } from "./pages/DashboardPage";
 import { ModulePage } from "./pages/ModulePage";
-import { AccountsPage } from "./pages/AccountsPage";
 import { PatientsPage } from "./pages/PatientsPage";
 import { NewPatientPage } from "./pages/NewPatientPage";
 import { PatientRecordPage } from "./pages/PatientRecordPage";
@@ -36,8 +35,6 @@ function elementFor(path: string) {
   switch (path) {
     case "/dashboard":
       return <DashboardPage />;
-    case "/accounts":
-      return <AccountsPage />;
     case "/patients":
       return <PatientsPage />;
     case "/patients/new":
@@ -117,8 +114,7 @@ function NoRoleAssigned() {
         account, so there is nothing for it to open. Nothing is wrong with your password.
       </p>
       <p className="mt-3 text-sm text-ink-muted">
-        Ask the Health and Wellness manager to assign a role in Accounts. Role assignment is theirs,
-        and it is an audited action.
+        Contact your system or Keycloak administrator to assign your account to an HWMS group or role.
       </p>
       <button type="button" className="button-secondary mt-6" onClick={() => void signOut()}>
         Sign out

@@ -1,0 +1,298 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>HWMS | Keycloak test users</title>
+  <style>
+    :root {
+      --clinical: #3155b7;
+      --clinical-deep: #1f3d8d;
+      --clinical-soft: #edf2ff;
+      --kmc-red: #e51f2b;
+      --kmc-red-wash: #fff0f2;
+      --ink: #17233b;
+      --muted: #647089;
+      --canvas: #f5f7fb;
+      --surface: #ffffff;
+      --rule: #e5eaf2;
+      --ok: #087a65;
+      --ok-wash: #eaf7f3;
+      --caution: #9a6100;
+      --caution-wash: #fff6e3;
+      --radius: 16px;
+      --shadow: 0 12px 32px rgb(20 35 63 / 7%);
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      background: var(--canvas);
+      color: var(--ink);
+      font: 400 15px/1.65 "Public Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+    }
+
+    .page { width: min(1120px, calc(100% - 40px)); margin: 0 auto; padding: 48px 0 80px; }
+    .eyebrow { color: var(--clinical); font-size: 12px; font-weight: 750; letter-spacing: .12em; text-transform: uppercase; }
+    h1 { max-width: 760px; margin: 12px 0 14px; font-size: clamp(2.2rem, 5vw, 3.75rem); line-height: 1.05; letter-spacing: -.055em; }
+    h2 { margin: 0; font-size: 1.55rem; line-height: 1.25; letter-spacing: -.03em; }
+    h3 { margin: 0 0 8px; font-size: 1.03rem; line-height: 1.35; }
+    p { margin: 8px 0 14px; }
+    .lede { max-width: 770px; color: var(--muted); font-size: 1.08rem; }
+    .chips { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 22px; }
+    .chip { display: inline-flex; align-items: center; gap: 7px; padding: 6px 11px; border: 1px solid var(--rule); border-radius: 999px; background: var(--surface); color: var(--muted); font-size: 12px; font-weight: 650; }
+    .chip strong { color: var(--ink); }
+    .sequence { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin: 34px 0 28px; }
+    .sequence div { padding: 14px 16px; border: 1px solid var(--rule); border-radius: 12px; background: var(--surface); }
+    .sequence b { display: block; color: var(--clinical); font-size: 12px; letter-spacing: .06em; text-transform: uppercase; }
+    .sequence span { display: block; margin-top: 4px; font-size: 14px; font-weight: 700; }
+    .notice { padding: 17px 19px; border: 1px solid #d5e0ff; border-left: 4px solid var(--clinical); border-radius: 12px; background: var(--clinical-soft); }
+    .notice p:last-child { margin-bottom: 0; }
+    .notice.alert { border-color: #f0dfb8; border-left-color: var(--caution); background: var(--caution-wash); }
+    .notice.alert strong { color: var(--caution); }
+    .notice.good { border-color: #cce9df; border-left-color: var(--ok); background: var(--ok-wash); }
+    .steps { display: grid; gap: 16px; margin-top: 30px; }
+    .step { padding: 24px clamp(18px, 4vw, 32px); border: 1px solid var(--rule); border-radius: var(--radius); background: var(--surface); box-shadow: var(--shadow); }
+    .step-head { display: flex; align-items: flex-start; gap: 15px; margin-bottom: 15px; }
+    .number { display: grid; flex: 0 0 38px; width: 38px; height: 38px; place-items: center; border-radius: 12px; background: var(--clinical); color: white; font-weight: 800; }
+    .step-head p { margin: 5px 0 0; color: var(--muted); }
+    ol, ul { padding-left: 1.35rem; }
+    li { padding-left: 4px; margin: 7px 0; }
+    li::marker { color: var(--clinical); font-weight: 750; }
+    code { padding: 2px 6px; border-radius: 6px; background: #f1f4f9; color: var(--clinical-deep); font: 600 .9em ui-monospace, SFMono-Regular, Menlo, monospace; overflow-wrap: anywhere; }
+    .table-wrap { overflow-x: auto; margin: 14px 0; border: 1px solid var(--rule); border-radius: 11px; }
+    table { width: 100%; border-collapse: collapse; text-align: left; }
+    th, td { min-width: 140px; padding: 11px 13px; border-bottom: 1px solid var(--rule); vertical-align: top; }
+    th { background: #f7f9fd; color: var(--muted); font-size: 11px; letter-spacing: .07em; text-transform: uppercase; }
+    tr:last-child td { border-bottom: 0; }
+    .role { display: inline-block; padding: 4px 8px; border-radius: 7px; background: var(--clinical-soft); color: var(--clinical-deep); font: 700 12px ui-monospace, SFMono-Regular, Menlo, monospace; }
+    .checklist { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin: 14px 0; }
+    .check { padding: 12px 14px; border: 1px solid var(--rule); border-radius: 10px; background: #fbfcff; }
+    .check b { display: block; margin-bottom: 3px; font-size: 13px; }
+    .check span { color: var(--muted); font-size: 13px; }
+    .rule { height: 1px; margin: 20px 0; border: 0; background: var(--rule); }
+    .small { color: var(--muted); font-size: 13px; }
+    .endnote { margin-top: 25px; padding: 18px 20px; border-radius: 12px; background: var(--ink); color: white; }
+    .endnote strong { color: white; }
+    @media (max-width: 700px) {
+      .page { width: min(100% - 24px, 1120px); padding-top: 32px; }
+      .sequence { grid-template-columns: 1fr; }
+      .checklist { grid-template-columns: 1fr; }
+      .step { padding: 20px 16px; }
+    }
+  </style>
+</head>
+<body>
+  <main class="page" data-magezi-doc>
+    <header data-id="guide-heading">
+      <div class="eyebrow">HWMS · Keycloak administration</div>
+      <h1>Set up test users by role</h1>
+      <p class="lede">Create three test accounts in the <strong>test</strong> realm, give each access through a role-bearing group, then sign in as each person to confirm the right HWMS screens appear.</p>
+      <div class="chips">
+        <span class="chip"><strong>Before you start</strong> gateway client is ready</span>
+        <span class="chip"><strong>Realm</strong> test</span>
+        <span class="chip"><strong>Accounts</strong> 1 per role</span>
+      </div>
+    </header>
+
+    <section class="sequence" data-id="setup-order" aria-label="Required setup order">
+      <div data-id="setup-order-roles"><b>First</b><span>Confirm roles</span></div>
+      <div data-id="setup-order-groups"><b>Second</b><span>Create groups + map roles</span></div>
+      <div data-id="setup-order-users"><b>Third</b><span>Create users + add to groups</span></div>
+    </section>
+
+    <aside class="notice" data-id="client-ready">
+      <strong>The client is ready; leave its settings alone.</strong>
+      <p>These steps only create groups and test accounts. Do not change the gateway client secret, redirect URIs, or other client settings as part of this task.</p>
+    </aside>
+
+    <aside class="notice alert" data-id="role-claim-warning">
+      <strong>Important for this HWMS build: use Realm roles.</strong>
+      <p>The gateway checks roles in the token's <code>realm_access.roles</code> claim. A client role usually appears under <code>resource_access</code> instead and may not authorize the user. If step 4 created client roles, pause and confirm that the deployed gateway has been configured to accept them; otherwise create/use the matching Realm roles before continuing.</p>
+    </aside>
+
+    <section class="steps" aria-label="Keycloak setup instructions">
+      <article class="step" data-id="step-1-realm">
+        <div class="step-head">
+          <div class="number">1</div>
+          <div>
+            <h2>Open the correct realm and confirm roles</h2>
+            <p>Do not create these test accounts in <code>master</code> or the local <code>hwms</code> realm.</p>
+          </div>
+        </div>
+        <ol>
+          <li>Sign in to the Keycloak Admin Console using your administrator account.</li>
+          <li>Use the realm selector in the upper-left / top navigation to select <strong>test</strong>. Re-check the realm name before creating anything.</li>
+          <li>Open <strong>Realm roles</strong> in the left navigation. Confirm these exact role names are listed:</li>
+        </ol>
+        <div class="table-wrap" data-id="role-list">
+          <table>
+            <thead><tr><th>HWMS role</th><th>Account to create</th><th>Group to create</th></tr></thead>
+            <tbody>
+              <tr><td><span class="role">hwms-officer</span></td><td><code>hwms.test.officer</code></td><td>HWMS Officers</td></tr>
+              <tr><td><span class="role">hwms-manager</span></td><td><code>hwms.test.manager</code></td><td>HWMS Managers</td></tr>
+              <tr><td><span class="role">hwms-director</span></td><td><code>hwms.test.director</code></td><td>HWMS Directors</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p class="small">If the roles were created under <strong>Clients → hwms-gateway → Roles</strong>, treat that as a stop-and-verify point (see the warning above) rather than assigning them blindly.</p>
+      </article>
+
+      <article class="step" data-id="step-2-groups">
+        <div class="step-head">
+          <div class="number">2</div>
+          <div>
+            <h2>Create one group for each role</h2>
+            <p>Assign the role to the group once. Every member then inherits it.</p>
+          </div>
+        </div>
+        <ol>
+          <li>In the left navigation, open <strong>Groups</strong> → <strong>Create group</strong>.</li>
+          <li>Enter <strong>HWMS Managers</strong> and select <strong>Create</strong>.</li>
+          <li>Open the new group, then select its <strong>Role mapping</strong> tab → <strong>Assign role</strong>.</li>
+          <li>Choose <strong>Realm roles</strong> (some Keycloak versions call the filter “Filter by realm roles”), select <code>hwms-manager</code>, and click <strong>Assign</strong>.</li>
+          <li>Repeat the same steps for <strong>HWMS Officers</strong> → <code>hwms-officer</code> and <strong>HWMS Directors</strong> → <code>hwms-director</code>.</li>
+        </ol>
+        <div class="notice good" data-id="group-role-check">
+          <strong>Check before moving on</strong>
+          <p>Open each group's <strong>Role mapping</strong> tab and confirm it shows exactly its matching HWMS role. Keep these three test groups separate; do not combine the roles in one group.</p>
+        </div>
+      </article>
+
+      <article class="step" data-id="step-3-users">
+        <div class="step-head">
+          <div class="number">3</div>
+          <div>
+            <h2>Create the three test accounts</h2>
+            <p>Use unique usernames and email addresses permitted by your test realm. Do not use a real employee's identity for a test account.</p>
+          </div>
+        </div>
+        <ol>
+          <li>Left navigation → <strong>Users</strong> → <strong>Add user</strong> (or <strong>Create new user</strong>).</li>
+          <li>Complete the fields below. Keep the account <strong>Enabled</strong>.</li>
+          <li>Select <strong>Create</strong>, then open the new user and add the matching group using the <strong>Groups</strong> tab → <strong>Join group</strong> (or <strong>Join Groups</strong>) → choose the group → <strong>Join</strong>.</li>
+          <li>Repeat for the other two users. If a username or email already exists, use a unique test address approved for the realm; do not overwrite another account.</li>
+        </ol>
+        <div class="table-wrap" data-id="user-fields">
+          <table>
+            <thead><tr><th>User field</th><th>Manager example</th><th>Officer / Director examples</th><th>Guidance</th></tr></thead>
+            <tbody>
+              <tr><td>Username</td><td><code>hwms.test.manager</code></td><td><code>hwms.test.officer</code><br><code>hwms.test.director</code></td><td>Use the exact lower-case name consistently during testing.</td></tr>
+              <tr><td>Email</td><td>Unique approved test email</td><td>One unique address per account</td><td>Must be unique if the realm disallows duplicate email addresses.</td></tr>
+              <tr><td>First / last name</td><td>Test / Manager</td><td>Test / Officer; Test / Director</td><td>Use clear test labels so the account is recognizable in the UI.</td></tr>
+              <tr><td>Email verified</td><td colspan="2">Follow the realm's email-verification policy</td><td>Do not mark an address verified unless it has actually been verified or the realm administrator explicitly permits that for test identities.</td></tr>
+              <tr><td>Required user actions</td><td colspan="2">Leave empty if using a temporary password in step 4</td><td>The temporary credential itself will require a password change at first sign-in.</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="table-wrap" data-id="user-group-map">
+          <table>
+            <thead><tr><th>Username</th><th>Join this group</th></tr></thead>
+            <tbody>
+              <tr><td><code>hwms.test.officer</code></td><td>HWMS Officers</td></tr>
+              <tr><td><code>hwms.test.manager</code></td><td>HWMS Managers</td></tr>
+              <tr><td><code>hwms.test.director</code></td><td>HWMS Directors</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </article>
+
+      <article class="step" data-id="step-4-passwords">
+        <div class="step-head">
+          <div class="number">4</div>
+          <div>
+            <h2>Set a temporary password for each user</h2>
+            <p>Set the password individually from each user's credentials page.</p>
+          </div>
+        </div>
+        <ol>
+          <li>Open the user → <strong>Credentials</strong> → <strong>Set password</strong>.</li>
+          <li>Enter the temporary password twice. Follow the password policy configured for the <strong>test</strong> realm; if rejected, use the validation message to correct it.</li>
+          <li>Leave <strong>Temporary</strong> switched <strong>On</strong>, choose <strong>Save</strong>, then confirm <strong>Set password</strong> if prompted.</li>
+          <li>Give each tester their initial password securely. The user must choose a new password at the first successful login.</li>
+        </ol>
+        <aside class="notice alert" data-id="password-safety">
+          <strong>Credential safety</strong>
+          <p>Never put passwords, client secrets, or copied access tokens in source control, this guide, or chat. Use a password manager or another approved secure channel; avoid reusing real staff passwords.</p>
+        </aside>
+      </article>
+
+      <article class="step" data-id="step-5-verify">
+        <div class="step-head">
+          <div class="number">5</div>
+          <div>
+            <h2>Verify group membership and inherited role</h2>
+            <p>Do this for all three accounts before attempting sign-in.</p>
+          </div>
+        </div>
+        <ol>
+          <li>Open a user → <strong>Groups</strong>. Confirm only the intended test group is listed.</li>
+          <li>Open <strong>Role mapping</strong>. Turn off <strong>Hide inherited roles</strong> (if shown) and confirm the role arrives through the group.</li>
+          <li>Make sure no test user has been directly assigned another HWMS role. A person in multiple HWMS groups could get a broader combination of access.</li>
+        </ol>
+        <div class="checklist" data-id="verify-matrix">
+          <div class="check" data-id="verify-officer"><b>Officer</b><span>HWMS Officers → <code>hwms-officer</code></span></div>
+          <div class="check" data-id="verify-manager"><b>Manager</b><span>HWMS Managers → <code>hwms-manager</code></span></div>
+          <div class="check" data-id="verify-director"><b>Director</b><span>HWMS Directors → <code>hwms-director</code></span></div>
+          <div class="check" data-id="verify-no-cross-role"><b>No cross-assignment</b><span>One HWMS group and its matching role per test account</span></div>
+        </div>
+      </article>
+
+      <article class="step" data-id="step-6-login">
+        <div class="step-head">
+          <div class="number">6</div>
+          <div>
+            <h2>Sign in as each user and check access</h2>
+            <p>Use the HWMS application only after it has been configured to authenticate against the <strong>test</strong> realm.</p>
+          </div>
+        </div>
+        <ol>
+          <li>Open a private/incognito browser window and go to the HWMS application sign-in page.</li>
+          <li>Sign in as <code>hwms.test.officer</code> using its temporary password. Complete the forced password change, then confirm the expected pages.</li>
+          <li>Sign out fully, close that private window, and repeat for the manager and director. This prevents a prior Keycloak SSO session from hiding which account is being tested.</li>
+        </ol>
+        <div class="table-wrap" data-id="expected-access">
+          <table>
+            <thead><tr><th>Test account</th><th>Expected HWMS experience</th><th>Access boundary</th></tr></thead>
+            <tbody>
+              <tr><td><code>hwms.test.officer</code></td><td>Patient visits and clinical recording screens</td><td>Clinical access belongs to the officer role only.</td></tr>
+              <tr><td><code>hwms.test.manager</code></td><td>Dashboard, operational screens, and Accounts</td><td>Operational summaries and account administration; no clinical records.</td></tr>
+              <tr><td><code>hwms.test.director</code></td><td>Dashboard / executive summaries</td><td>Read-only summaries; no clinical records or entry controls.</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p class="small">If a user is sent back to sign-in or sees the wrong pages, use the checks below before changing client configuration.</p>
+      </article>
+
+      <article class="step" data-id="troubleshooting">
+        <div class="step-head">
+          <div class="number">?</div>
+          <div>
+            <h2>If a test account does not work</h2>
+            <p>Check role type and group inheritance first; do not compensate by granting extra roles directly to the user.</p>
+          </div>
+        </div>
+        <div class="table-wrap" data-id="troubleshooting-table">
+          <table>
+            <thead><tr><th>Symptom</th><th>Check</th><th>Next step</th></tr></thead>
+            <tbody>
+              <tr><td>“No role” or returned to sign-in</td><td>Is the account in the correct group? Does the group have the Realm role?</td><td>Fix the group membership or role mapping; sign out and retry.</td></tr>
+              <tr><td>Group shows, but HWMS role is missing</td><td>Was a Client role assigned instead of a Realm role?</td><td>Confirm the token claim format with the deployment owner; this gateway reads <code>realm_access.roles</code>.</td></tr>
+              <tr><td>Password is rejected</td><td>Is the temporary password compliant with the test realm's password policy?</td><td>Set a new temporary password that meets the displayed requirements.</td></tr>
+              <tr><td>Wrong account appears during test</td><td>Is the browser reusing a Keycloak SSO session?</td><td>Sign out, close the private window, open a fresh one, and retry.</td></tr>
+              <tr><td>Unexpected pages or access</td><td>Does the user belong to multiple HWMS groups or have direct role grants?</td><td>Remove unintended membership/grants and retest. Report any remaining access mismatch.</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </article>
+    </section>
+
+    <footer class="endnote" data-id="ongoing-user-admin">
+      <strong>For later test users:</strong> add an authorized person to the correct group to grant HWMS access, and remove them from that group to revoke the group's role. Keep access least-privileged, review memberships periodically, and follow the organization's account-provisioning process for real staff.
+    </footer>
+  </main>
+  <link rel="stylesheet" href="magezi.css">
+  <script src="magezi.js"></script>
+</body>
+</html>

@@ -95,7 +95,6 @@ services:
       # systemd-resolved stub at 127.0.0.53, so dependency downloads time out
       # on some Linux hosts while the host itself resolves perfectly well.
       # Building on the host network sidesteps that entirely.
-      network: host
     environment:
       GATEWAY_ADDR: ":8081"
       LOG_LEVEL: ${LOG_LEVEL:-info}
@@ -113,7 +112,7 @@ services:
       # OIDC_DISCOVERY_URL exists for the deployment where that split is real.
       # It is deliberately unset here.
       OIDC_ISSUER: ${OIDC_ISSUER:-http://keycloak:8180/realms/hwms}
-      OIDC_CLIENT_ID: hwms-gateway
+      OIDC_CLIENT_ID: ${OIDC_CLIENT_ID:-hwms-gateway}
       OIDC_CLIENT_SECRET: ${GATEWAY_CLIENT_SECRET:-development-only-gateway-secret-rotate-me}
       OIDC_REDIRECT_URL: ${APP_BASE_URL:-http://localhost:8090}/auth/callback
       APP_BASE_URL: ${APP_BASE_URL:-http://localhost:8090}
@@ -143,7 +142,6 @@ services:
       # systemd-resolved stub at 127.0.0.53, so dependency downloads time out
       # on some Linux hosts while the host itself resolves perfectly well.
       # Building on the host network sidesteps that entirely.
-      network: host
     environment:
       CLINICAL_ADDR: ":8083"
       LOG_LEVEL: ${LOG_LEVEL:-info}
@@ -172,7 +170,6 @@ services:
       # systemd-resolved stub at 127.0.0.53, so dependency downloads time out
       # on some Linux hosts while the host itself resolves perfectly well.
       # Building on the host network sidesteps that entirely.
-      network: host
     environment:
       IDENTITY_ADDR: ":8082"
       LOG_LEVEL: ${LOG_LEVEL:-info}
@@ -187,9 +184,9 @@ services:
       # It is deliberately unset here.
       OIDC_ISSUER: ${OIDC_ISSUER:-http://keycloak:8180/realms/hwms}
       OIDC_AUDIENCE: ${OIDC_AUDIENCE:-account}
-      KEYCLOAK_URL: http://keycloak:8180
-      KEYCLOAK_REALM: hwms
-      KEYCLOAK_ADMIN_CLIENT_ID: hwms-identity
+      KEYCLOAK_URL: ${KEYCLOAK_URL:-http://keycloak:8180}
+      KEYCLOAK_REALM: ${KEYCLOAK_REALM:-hwms}
+      KEYCLOAK_ADMIN_CLIENT_ID: ${KEYCLOAK_ADMIN_CLIENT_ID:-hwms-identity}
       KEYCLOAK_ADMIN_CLIENT_SECRET: ${IDENTITY_CLIENT_SECRET:-development-only-identity-secret-rotate-me}
       DATABASE_URL: postgres://${POSTGRES_USER:-hwms}:${POSTGRES_PASSWORD:-hwms-development-password}@postgres:5432/identity?sslmode=disable
     depends_on:
@@ -212,7 +209,6 @@ services:
       # systemd-resolved stub at 127.0.0.53, so dependency downloads time out
       # on some Linux hosts while the host itself resolves perfectly well.
       # Building on the host network sidesteps that entirely.
-      network: host
     environment:
       ADMIN_ADDR: ":8084"
       LOG_LEVEL: ${LOG_LEVEL:-info}
@@ -236,7 +232,6 @@ services:
       # systemd-resolved stub at 127.0.0.53, so dependency downloads time out
       # on some Linux hosts while the host itself resolves perfectly well.
       # Building on the host network sidesteps that entirely.
-      network: host
     environment:
       OCCUPATIONAL_ADDR: ":8085"
       LOG_LEVEL: ${LOG_LEVEL:-info}
@@ -269,7 +264,6 @@ services:
       # systemd-resolved stub at 127.0.0.53, so dependency downloads time out
       # on some Linux hosts while the host itself resolves perfectly well.
       # Building on the host network sidesteps that entirely.
-      network: host
     environment:
       METRICS_ADDR: ":8086"
       LOG_LEVEL: ${LOG_LEVEL:-info}
@@ -300,7 +294,6 @@ services:
       # systemd-resolved stub at 127.0.0.53, so dependency downloads time out
       # on some Linux hosts while the host itself resolves perfectly well.
       # Building on the host network sidesteps that entirely.
-      network: host
     ports:
       # 8090 rather than 8080 by default: 8080 is the most contended port on a
       # developer machine, and losing a first run to a port clash with an

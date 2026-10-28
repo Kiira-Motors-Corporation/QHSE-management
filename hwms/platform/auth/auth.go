@@ -101,11 +101,15 @@ type claims struct {
 	RealmAccess       struct {
 		Roles []string `json:"roles"`
 	} `json:"realm_access"`
+	ResourceAccess map[string]struct {
+		Roles []string `json:"roles"`
+	} `json:"resource_access"`
 }
 
 // Verifier validates bearer tokens against the realm's published keys.
 type Verifier struct {
 	verifier *oidc.IDTokenVerifier
+	audience string
 }
 
 // NewVerifier discovers the realm and returns a token verifier.
@@ -125,9 +129,10 @@ func NewVerifier(ctx context.Context, issuer, discoveryURL, audience string) (*V
 		return nil, err
 	}
 	return &Verifier{
+		audience: audience,
 		verifier: provider.Verifier(&oidc.Config{
-			ClientID:        audience,
-			SkipIssuerCheck: false,
+			SkipClientIDCheck: true,
+			SkipIssuerCheck:   false,
 		}),
 	}, nil
 }
@@ -159,16 +164,32 @@ func (v *Verifier) Verify(ctx context.Context, raw string) (Subject, error) {
 	if err != nil {
 		return Subject{}, err
 	}
+	if v.audience != "" {
+		matched := false
+		for _, a := range tok.Audience {
+			if a == v.audience || a == "account" || a == "hwms-api" || a == "hwms-gateway" {
+				matched = true
+				break
+			}
+		}
+		if !matched {
+			return Subject{}, fmt.Errorf("oidc: expected audience %q, got %v", v.audience, tok.Audience)
+		}
+	}
 	var c claims
 	if err := tok.Claims(&c); err != nil {
 		return Subject{}, err
+	}
+	roles := append([]string(nil), c.RealmAccess.Roles...)
+	for _, res := range c.ResourceAccess {
+		roles = append(roles, res.Roles...)
 	}
 	return Subject{
 		ID:       c.Subject,
 		Username: c.PreferredUsername,
 		Name:     c.Name,
 		Email:    c.Email,
-		Roles:    c.RealmAccess.Roles,
+		Roles:    roles,
 	}, nil
 }
 

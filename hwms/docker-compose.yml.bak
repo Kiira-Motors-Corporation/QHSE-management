@@ -1,0 +1,347 @@
+# Development and demonstration stack for the KMC QHSE Management System.
+#
+# One command brings up the whole system: identity, database, services,
+# application and observability. If a new joiner cannot clone this repository
+# and reach a working sign-in screen within half an hour, that is a defect with
+# a ticket, not an onboarding cost to absorb.
+#
+# This file is not the production deployment. Production manifests are in
+# deploy/k8s. What is shared between them is the images and the configuration
+# keys; what differs is secrets, replicas and ingress.
+
+name: hwms
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-hwms}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-hwms-development-password}
+      POSTGRES_DB: postgres
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ./deploy/postgres/init-databases.sh:/docker-entrypoint-initdb.d/init-databases.sh:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-hwms}"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    ports:
+      # Loopback publication lets the opt-in integration tests exercise the
+      # same databases as the services without exposing Postgres on the LAN.
+      - "127.0.0.1:${SHARED_POSTGRES_PORT:-55432}:5432"
+    restart: unless-stopped
+
+  # The clinical database runs as a separate instance with separate
+  # credentials, per DR-03. Not a separate database on the shared instance, a
+  # separate instance. The reason for the separation is legal rather than
+  # architectural, and a shared instance would leave one credential leak
+  # between an unrelated service and a patient record.
+  postgres-clinical:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: ${CLINICAL_DB_USER:-hwms_clinical}
+      POSTGRES_PASSWORD: ${CLINICAL_DB_PASSWORD:-clinical-development-password}
+      POSTGRES_DB: clinical
+    volumes:
+      - postgres-clinical-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${CLINICAL_DB_USER:-hwms_clinical}"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    ports:
+      - "127.0.0.1:${CLINICAL_POSTGRES_PORT:-55433}:5432"
+    restart: unless-stopped
+
+  keycloak:
+    image: quay.io/keycloak/keycloak:26.0
+    command: ["start-dev", "--import-realm"]
+    environment:
+      KC_BOOTSTRAP_ADMIN_USERNAME: ${KEYCLOAK_ADMIN:-admin}
+      KC_BOOTSTRAP_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD:-admin-development-password}
+      KC_DB: postgres
+      KC_DB_URL: jdbc:postgresql://postgres:5432/keycloak
+      KC_DB_USERNAME: ${POSTGRES_USER:-hwms}
+      KC_DB_PASSWORD: ${POSTGRES_PASSWORD:-hwms-development-password}
+      KC_HTTP_PORT: 8180
+      # Advertised consistently whichever address the discovery document is
+      # fetched from, so the browser and the services agree on the issuer.
+      KC_HOSTNAME: http://keycloak:8180
+      KC_HOSTNAME_STRICT: "false"
+      KC_HEALTH_ENABLED: "true"
+    volumes:
+      - ./deploy/keycloak/realm-hwms.json:/opt/keycloak/data/import/realm-hwms.json:ro
+      # The KMC login theme. Mounted at its own path rather than over the whole
+      # themes directory, so nothing shipped with Keycloak is shadowed.
+      #
+      # start-dev disables theme caching, so an edit to a template or the
+      # stylesheet shows on a refresh without restarting the container.
+      - ./deploy/keycloak/themes/kmc:/opt/keycloak/themes/kmc:ro
+    ports:
+      # Exposed so the browser can reach the sign-in page and so the seed
+      # script can run from the host.
+      - "8180:8180"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+
+  gateway:
+    build:
+      context: .
+      dockerfile: services/gateway/Dockerfile
+      # Build on the host network. Docker's build network cannot reach a
+      # systemd-resolved stub at 127.0.0.53, so dependency downloads time out
+      # on some Linux hosts while the host itself resolves perfectly well.
+      # Building on the host network sidesteps that entirely.
+      network: host
+    environment:
+      GATEWAY_ADDR: ":8081"
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      # The issuer must be an address that is identical for the browser and
+      # for this service, or token validation fails on the issuer claim. On the
+      # composed stack that means the host-visible address, reachable from
+      # inside the network via the alias below.
+      # Keycloak is reached at the same hostname by the browser and by the
+      # services. That requires one line in the developer's /etc/hosts, see
+      # the README, and it is worth the step: a split between an internal and
+      # an external address for the identity provider is the classic cause of
+      # "token issued by an unexpected issuer" on a first run, and it does not
+      # exist in production, where Keycloak has one DNS name.
+      #
+      # OIDC_DISCOVERY_URL exists for the deployment where that split is real.
+      # It is deliberately unset here.
+      OIDC_ISSUER: ${OIDC_ISSUER:-http://keycloak:8180/realms/hwms}
+      OIDC_CLIENT_ID: hwms-gateway
+      OIDC_CLIENT_SECRET: ${GATEWAY_CLIENT_SECRET:-development-only-gateway-secret-rotate-me}
+      OIDC_REDIRECT_URL: ${APP_BASE_URL:-http://localhost:8090}/auth/callback
+      APP_BASE_URL: ${APP_BASE_URL:-http://localhost:8090}
+      IDENTITY_SERVICE_URL: http://identity:8082
+      CLINICAL_SERVICE_URL: http://clinical:8083
+      ADMIN_SERVICE_URL: http://admin:8084
+      OCCUPATIONAL_SERVICE_URL: http://occupational:8085
+      METRICS_SERVICE_URL: http://metrics:8086
+      # Plain HTTP locally. Production terminates TLS at the ingress and this
+      # is true, per NFR-SEC-01.
+      COOKIE_SECURE: ${COOKIE_SECURE:-false}
+      SESSION_IDLE_TIMEOUT: ${SESSION_IDLE_TIMEOUT:-30m}
+    depends_on:
+      - keycloak
+      - identity
+      - clinical
+      - admin
+      - occupational
+      - metrics
+    restart: unless-stopped
+
+  clinical:
+    build:
+      context: .
+      dockerfile: services/clinical/Dockerfile
+      # Build on the host network. Docker's build network cannot reach a
+      # systemd-resolved stub at 127.0.0.53, so dependency downloads time out
+      # on some Linux hosts while the host itself resolves perfectly well.
+      # Building on the host network sidesteps that entirely.
+      network: host
+    environment:
+      CLINICAL_ADDR: ":8083"
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      OIDC_ISSUER: ${OIDC_ISSUER:-http://keycloak:8180/realms/hwms}
+      OIDC_AUDIENCE: ${OIDC_AUDIENCE:-account}
+      # The only service issued these credentials.
+      CLINICAL_DATABASE_URL: postgres://${CLINICAL_DB_USER:-hwms_clinical}:${CLINICAL_DB_PASSWORD:-clinical-development-password}@postgres-clinical:5432/clinical?sslmode=disable
+      # Delivery of recommended sick leave to the metrics service, from the
+      # transactional outbox. Four fields travel, referral id, version,
+      # month, days, and a contract test on each side fails the build if
+      # either widens.
+      METRICS_SERVICE_URL: http://metrics:8086
+      METRICS_INGEST_TOKEN: ${METRICS_INGEST_TOKEN:-development-only-metrics-ingest-secret-rotate-me}
+    depends_on:
+      postgres-clinical:
+        condition: service_healthy
+      keycloak:
+        condition: service_started
+    restart: unless-stopped
+
+  identity:
+    build:
+      context: .
+      dockerfile: services/identity/Dockerfile
+      # Build on the host network. Docker's build network cannot reach a
+      # systemd-resolved stub at 127.0.0.53, so dependency downloads time out
+      # on some Linux hosts while the host itself resolves perfectly well.
+      # Building on the host network sidesteps that entirely.
+      network: host
+    environment:
+      IDENTITY_ADDR: ":8082"
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      # Keycloak is reached at the same hostname by the browser and by the
+      # services. That requires one line in the developer's /etc/hosts, see
+      # the README, and it is worth the step: a split between an internal and
+      # an external address for the identity provider is the classic cause of
+      # "token issued by an unexpected issuer" on a first run, and it does not
+      # exist in production, where Keycloak has one DNS name.
+      #
+      # OIDC_DISCOVERY_URL exists for the deployment where that split is real.
+      # It is deliberately unset here.
+      OIDC_ISSUER: ${OIDC_ISSUER:-http://keycloak:8180/realms/hwms}
+      OIDC_AUDIENCE: ${OIDC_AUDIENCE:-account}
+      KEYCLOAK_URL: http://keycloak:8180
+      KEYCLOAK_REALM: hwms
+      KEYCLOAK_ADMIN_CLIENT_ID: hwms-identity
+      KEYCLOAK_ADMIN_CLIENT_SECRET: ${IDENTITY_CLIENT_SECRET:-development-only-identity-secret-rotate-me}
+      DATABASE_URL: postgres://${POSTGRES_USER:-hwms}:${POSTGRES_PASSWORD:-hwms-development-password}@postgres:5432/identity?sslmode=disable
+    depends_on:
+      postgres:
+        condition: service_healthy
+      keycloak:
+        condition: service_started
+    restart: unless-stopped
+
+  # Effective-dated reference data: KPI targets and exposure limits.
+  #
+  # Small on purpose. Every threshold in the system is a decision by somebody
+  # outside engineering, and putting them all behind one service with one owner
+  # is what makes ADR-08 enforceable rather than aspirational.
+  admin:
+    build:
+      context: .
+      dockerfile: services/admin/Dockerfile
+      # Build on the host network. Docker's build network cannot reach a
+      # systemd-resolved stub at 127.0.0.53, so dependency downloads time out
+      # on some Linux hosts while the host itself resolves perfectly well.
+      # Building on the host network sidesteps that entirely.
+      network: host
+    environment:
+      ADMIN_ADDR: ":8084"
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      OIDC_ISSUER: ${OIDC_ISSUER:-http://keycloak:8180/realms/hwms}
+      OIDC_AUDIENCE: ${OIDC_AUDIENCE:-account}
+      ADMIN_DATABASE_URL: postgres://${POSTGRES_USER:-hwms}:${POSTGRES_PASSWORD:-hwms-development-password}@postgres:5432/admin?sslmode=disable
+    depends_on:
+      postgres:
+        condition: service_healthy
+      keycloak:
+        condition: service_started
+    restart: unless-stopped
+
+  # Ergonomics and industrial hygiene. Holds no clinical content and no
+  # clinical credential: a noise reading is a fact about a place.
+  occupational:
+    build:
+      context: .
+      dockerfile: services/occupational/Dockerfile
+      # Build on the host network. Docker's build network cannot reach a
+      # systemd-resolved stub at 127.0.0.53, so dependency downloads time out
+      # on some Linux hosts while the host itself resolves perfectly well.
+      # Building on the host network sidesteps that entirely.
+      network: host
+    environment:
+      OCCUPATIONAL_ADDR: ":8085"
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      OIDC_ISSUER: ${OIDC_ISSUER:-http://keycloak:8180/realms/hwms}
+      OIDC_AUDIENCE: ${OIDC_AUDIENCE:-account}
+      OCCUPATIONAL_DATABASE_URL: postgres://${POSTGRES_USER:-hwms}:${POSTGRES_PASSWORD:-hwms-development-password}@postgres:5432/occupational?sslmode=disable
+      # Every reading resolves the limit in force on its date through here,
+      # then copies the answer onto the row.
+      ADMIN_SERVICE_URL: http://admin:8084
+    depends_on:
+      postgres:
+        condition: service_healthy
+      keycloak:
+        condition: service_started
+      admin:
+        condition: service_started
+    restart: unless-stopped
+
+  # Monthly returns and the dashboard.
+  #
+  # Note what is not in this block: no clinical database URL and no clinical
+  # credential of any kind. This service computes health-related absenteeism
+  # without ever being able to read a patient record, which is the property
+  # that lets a director open the dashboard.
+  metrics:
+    build:
+      context: .
+      dockerfile: services/metrics/Dockerfile
+      # Build on the host network. Docker's build network cannot reach a
+      # systemd-resolved stub at 127.0.0.53, so dependency downloads time out
+      # on some Linux hosts while the host itself resolves perfectly well.
+      # Building on the host network sidesteps that entirely.
+      network: host
+    environment:
+      METRICS_ADDR: ":8086"
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      OIDC_ISSUER: ${OIDC_ISSUER:-http://keycloak:8180/realms/hwms}
+      OIDC_AUDIENCE: ${OIDC_AUDIENCE:-account}
+      METRICS_DATABASE_URL: postgres://${POSTGRES_USER:-hwms}:${POSTGRES_PASSWORD:-hwms-development-password}@postgres:5432/metrics?sslmode=disable
+      ADMIN_SERVICE_URL: http://admin:8084
+      OCCUPATIONAL_SERVICE_URL: http://occupational:8085
+      # Shared secret for the clinical service's outbox delivery, on the
+      # internal network only. Development grade: production replaces it with
+      # a Keycloak service account. It is never routed through the gateway.
+      METRICS_INGEST_TOKEN: ${METRICS_INGEST_TOKEN:-development-only-metrics-ingest-secret-rotate-me}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      keycloak:
+        condition: service_started
+      admin:
+        condition: service_started
+      occupational:
+        condition: service_started
+    restart: unless-stopped
+
+  web:
+    build:
+      context: ./web
+      # Build on the host network. Docker's build network cannot reach a
+      # systemd-resolved stub at 127.0.0.53, so dependency downloads time out
+      # on some Linux hosts while the host itself resolves perfectly well.
+      # Building on the host network sidesteps that entirely.
+      network: host
+    ports:
+      # 8090 rather than 8080 by default: 8080 is the most contended port on a
+      # developer machine, and losing a first run to a port clash with an
+      # unrelated project is a poor introduction to the system. Override with
+      # WEB_PORT, and change APP_BASE_URL and the realm redirect URI together
+      # if you do. All three have to agree or sign-in is refused.
+      - "${WEB_PORT:-8090}:8080"
+    depends_on:
+      - gateway
+    restart: unless-stopped
+
+  prometheus:
+    image: prom/prometheus:v3.1.0
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.retention.time=15d
+    volumes:
+      - ./deploy/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus-data:/prometheus
+    ports:
+      - "9090:9090"
+    restart: unless-stopped
+
+  grafana:
+    image: grafana/grafana:11.4.0
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-admin-development-password}
+      GF_USERS_ALLOW_SIGN_UP: "false"
+      GF_ANALYTICS_REPORTING_ENABLED: "false"
+      GF_ANALYTICS_CHECK_FOR_UPDATES: "false"
+    volumes:
+      - ./deploy/grafana/provisioning:/etc/grafana/provisioning:ro
+      - grafana-data:/var/lib/grafana
+    ports:
+      - "${GRAFANA_PORT:-3001}:3000"
+    depends_on:
+      - prometheus
+    restart: unless-stopped
+
+volumes:
+  postgres-data:
+  postgres-clinical-data:
+  prometheus-data:
+  grafana-data:
