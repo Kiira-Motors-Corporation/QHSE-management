@@ -329,7 +329,10 @@ function SummaryRow({ metric, detail }: { metric: DashboardMetric; detail: strin
         onClick={(event) => jumpToCard(event, metric.id)}
       >
         <span className="summary-row-name">
-          <strong>{metric.name}</strong>
+          <span className="inline-flex items-center gap-1.5 min-w-0">
+            <span className="metric-code metric-code--subtle">{metric.id}</span>
+            <strong className="truncate">{metric.name}</strong>
+          </span>
           <span>{detail}</span>
         </span>
         <span className="summary-row-figure">{hasFigure ? metric.month.displayValue : "—"}</span>
@@ -366,12 +369,13 @@ function MetricCard({
       aria-labelledby={`metric-${metric.id}-name`}
     >
       <header className="metric-card-head">
+        <div className="metric-card-topline">
+          <span className="metric-code">{metric.id}</span>
+          <span className="metric-meta">{metric.provenance || "No source"}</span>
+        </div>
         <h3 id={`metric-${metric.id}-name`} className="metric-title">
           {metric.name}
         </h3>
-        <span className="metric-meta">
-          {metric.id} · {metric.provenance || "No source"}
-        </span>
       </header>
 
       <div className="metric-headline">
@@ -379,9 +383,11 @@ function MetricCard({
           {mark === "ring" ? (
             <RadialMeter value={value} target={metric.targetValue} status={metric.month.status} label={description} />
           ) : (
-            <span className="metric-figure" data-empty={hasFigure ? undefined : ""}>
-              {hasFigure ? metric.month.displayValue : "—"}
-            </span>
+            <div className="metric-figure-dial">
+              <span className="metric-figure" data-empty={hasFigure ? undefined : ""}>
+                {hasFigure ? metric.month.displayValue : "—"}
+              </span>
+            </div>
           )}
         </div>
 
@@ -397,12 +403,16 @@ function MetricCard({
                 </span>
               ) : null}
               <br />
-              {metric.direction === "higher" ? "Higher is better" : "Lower is better"}
+              <span className="metric-target-direction">
+                {metric.direction === "higher" ? "Higher is better" : "Lower is better"}
+              </span>
             </p>
           ) : (
             <p className="metric-target">No target is in force</p>
           )}
-          {distance ? <p className="metric-distance">{distance}</p> : null}
+          {distance ? (
+            <p className={`metric-distance metric-distance--${metric.month.status}`}>{distance}</p>
+          ) : null}
           {!hasFigure ? <p className="metric-distance">No figure for {periodLabel}</p> : null}
         </div>
 

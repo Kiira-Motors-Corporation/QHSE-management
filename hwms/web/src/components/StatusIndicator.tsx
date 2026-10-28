@@ -29,14 +29,59 @@ export type Status =
   | "not-applicable"
   | "provisional";
 
-const presentation: Record<Status, { glyph: string; label: string; fg: string; bg: string }> = {
-  within: { glyph: "✓", label: "Within target", fg: "var(--ok)", bg: "var(--ok-wash)" },
-  approaching: { glyph: "~", label: "Approaching limit", fg: "var(--caution)", bg: "var(--caution-wash)" },
-  breach: { glyph: "✗", label: "Outside limit", fg: "var(--breach)", bg: "var(--breach-wash)" },
-  "no-data": { glyph: "—", label: "No data", fg: "var(--neutral)", bg: "var(--neutral-wash)" },
-  informational: { glyph: "i", label: "Informational", fg: "var(--info)", bg: "var(--info-wash)" },
-  "not-applicable": { glyph: "·", label: "Not applicable", fg: "var(--neutral)", bg: "var(--neutral-wash)" },
-  provisional: { glyph: "~", label: "Provisional", fg: "var(--caution)", bg: "var(--caution-wash)" },
+const presentation: Record<
+  Status,
+  { glyph: string; label: string; fg: string; bg: string; border: string }
+> = {
+  within: {
+    glyph: "✓",
+    label: "Within target",
+    fg: "var(--ok)",
+    bg: "var(--ok-wash)",
+    border: "rgba(13, 122, 95, 0.25)",
+  },
+  approaching: {
+    glyph: "~",
+    label: "Approaching limit",
+    fg: "var(--caution)",
+    bg: "var(--caution-wash)",
+    border: "rgba(180, 83, 9, 0.25)",
+  },
+  breach: {
+    glyph: "✗",
+    label: "Outside limit",
+    fg: "var(--breach)",
+    bg: "var(--breach-wash)",
+    border: "rgba(185, 28, 28, 0.25)",
+  },
+  "no-data": {
+    glyph: "—",
+    label: "No data",
+    fg: "var(--neutral)",
+    bg: "var(--neutral-wash)",
+    border: "rgba(100, 116, 139, 0.22)",
+  },
+  informational: {
+    glyph: "i",
+    label: "Informational",
+    fg: "var(--info)",
+    bg: "var(--info-wash)",
+    border: "rgba(29, 78, 216, 0.25)",
+  },
+  "not-applicable": {
+    glyph: "·",
+    label: "Not applicable",
+    fg: "var(--neutral)",
+    bg: "var(--neutral-wash)",
+    border: "rgba(100, 116, 139, 0.22)",
+  },
+  provisional: {
+    glyph: "~",
+    label: "Provisional",
+    fg: "var(--caution)",
+    bg: "var(--caution-wash)",
+    border: "rgba(180, 83, 9, 0.25)",
+  },
 };
 
 interface StatusIndicatorProps {
@@ -50,10 +95,19 @@ export function StatusIndicator({ status, label, className = "" }: StatusIndicat
   const shown = presentation[status];
   return (
     <span
-      className={`inline-flex items-center gap-2 rounded px-2 py-1 text-xs font-semibold ${className}`}
-      style={{ color: shown.fg, background: shown.bg }}
+      className={`inline-flex items-center gap-1.5 px-2 py-0.5 text-xs font-semibold ${className}`}
+      style={{
+        color: shown.fg,
+        backgroundColor: shown.bg,
+        border: `1px solid ${shown.border}`,
+        borderRadius: "var(--radius)",
+      }}
     >
-      <span aria-hidden="true" className="data-value">
+      <span
+        aria-hidden="true"
+        className="data-value font-mono text-[11px] font-bold leading-none"
+        style={{ minWidth: "10px", textAlign: "center" }}
+      >
         {shown.glyph}
       </span>
       <span>{label ?? shown.label}</span>
